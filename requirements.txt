@@ -1,5 +1,6 @@
-tensorflow==2.5.0
+tensorflow==2.4.1
 numpy==1.19.5
 streamlit==0.80.0
-opencv-python==4.4.0.40
+click<=8.0.4
+opencv-python==4.2.0.34
 gunicorn==20.0.4
