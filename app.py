@@ -1,4 +1,5 @@
 # Importing the required packages
+import math
 import streamlit as st
 import cv2      
 import os
@@ -6,12 +7,14 @@ import urllib
 import numpy as np    
 import tensorflow as tf
 import time
+from scipy.signal import convolve2d
+
 
 def main():
     #print(cv2.__version__)
     selected_box = st.sidebar.selectbox(
         'Choose an option..',
-        ('About the Project','Evaluate the model','view source code')
+        ('About the Project','Evaluate the model','View source code')
         )
         
     readme_text = st.markdown(get_file_content_as_string("README.md"))
@@ -21,7 +24,7 @@ def main():
     if selected_box == 'Evaluate the model':
         readme_text.empty()
         models()
-    if selected_box=='view source code':
+    if selected_box =='View source code':
         readme_text.empty()
         st.code(get_file_content_as_string("app.py"))
 
@@ -35,7 +38,7 @@ def get_file_content_as_string(path):
 
 def models():
 
-    st.title('Denoise your image with deep learning models..')
+    st.title('Denoise your image with deep learning models..\n')
         
         
     st.write('\n')
@@ -43,44 +46,58 @@ def models():
     choice=st.sidebar.selectbox("Choose how to load image",["Use Existing Images","Browse Image"])
     
     if choice=="Browse Image":
+
       uploaded_file = st.sidebar.file_uploader("Choose a image file", type="jpg")
 
       if uploaded_file is not None:
       # Convert the file to an opencv image.
+
         file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
         gt = cv2.imdecode(file_bytes, 1)
-        prediction_ui(gt)
-          
+        img = gt
+        img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        nl = estimate_noise(img_gray)
+        prediction_ui(gt,nl)
+
+
     if choice=="Use Existing Images":
-    
-      image_file_chosen = st.sidebar.selectbox('Select an existing image:', get_list_of_images(),8)
+
+      image_file_chosen = st.sidebar.selectbox('Select an existing image:', get_list_of_images(),14)
       
       if image_file_chosen:
           imagespath=os.path.join(os.getcwd(),'images')
-          gt=cv2.imread(os.path.join(imagespath,image_file_chosen))
-          prediction_ui(gt)
+          gt = cv2.imread(os.path.join(imagespath,image_file_chosen))
+          img = gt
+          img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+          nl= estimate_noise(img_gray)
+
+          st.write('\n')
+          prediction_ui(gt,nl)
 
 
 
 def get_list_of_images():
+
     file_list = os.listdir(os.path.join(os.getcwd(),'images'))
     return [str(filename) for filename in file_list if str(filename).endswith('.jpg')]
     
-def prediction_ui(gt):
+def prediction_ui(gt,nl):
 
     models_load_state=st.text('\n Loading models..')
-    dncnn,dncnn_lite,ridnet,ridnet_lite=get_models()
-    models_load_state.text('\n Models Loading..complete')
+    dncnn, dncnn_lite, ridnet, ridnet_lite= get_models()
+    st.write("\n")
+    models_load_state.text('\t Models Loading..complete\n')
 
     dncnn_filesize,dncnnlite_filesize,ridnet_filesize,ridnetlite_filesize=get_filesizes()
-    
-    noise_level = st.sidebar.slider("Pick the noise level", 0, 45, 0)
-          
-    ground_truth,noisy_image,patches_noisy=get_image(gt,noise_level=noise_level)
+
+
+
+
+    ground_truth,noisy_image,patches_noisy = get_image(gt,noise_level=nl)
     st.header('Input Image')
-    st.markdown('** Noise level : ** `%d`  ( Noise level `0` will be same as original image )'%(noise_level))
+    st.markdown('** Noise level : ** `%d`  ' %(nl))
     st.image(noisy_image)
-    if noise_level!=0:
+    if nl!=0:
       st.success('PSNR of Noisy image : %.3f db'%PSNR(ground_truth,noisy_image))
       
     model = st.sidebar.radio("Choose a model to predict",('DNCNN', 'RIDNET'),0)
@@ -89,7 +106,7 @@ def prediction_ui(gt):
     submit = st.sidebar.button('Predict Now')
           
   
-    if submit and noise_level!=0:
+    if submit and nl!=0:
     
         if model=='DNCNN':
             progress_bar = st.progress(0)
@@ -147,8 +164,8 @@ def prediction_ui(gt):
                     to invoke the model, so it taking more than usual. """)
         st.markdown("""** Note : This application is running on CPU , speed can be further increased by using GPU ** """)         
 
-    elif submit==True and noise_level==0:
-        st.error("Choose noise level")
+    elif submit==True and nl == 0:
+        st.error("There is no noise")
 
 
 @st.cache
@@ -259,6 +276,14 @@ def PSNR(gt, image, max_value=1):
     if mse == 0:
         return 100
     return 20 * np.log10(max_value / (np.sqrt(mse)))
+
+def estimate_noise(I):
+
+    H,W = I.shape
+    M = [[1,-2,1],[-2,4,-2],[1,-2,1]]
+    sigma=np.sum(np.sum(np.absolute(convolve2d(I,M))))
+    sigma=sigma*math.sqrt(0.5*math.pi)/(6*(W-2)*(H-2))
+    return sigma
     
 
 if __name__ == "__main__":
