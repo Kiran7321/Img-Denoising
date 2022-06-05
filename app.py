@@ -70,6 +70,9 @@ def models():
           img = gt
           img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
           nl= estimate_noise(img_gray)
+            
+          if(image_file_chosen=="swan.jpg"):
+              nl=0
 
           st.write('\n')
           prediction_ui(gt,nl)
@@ -165,7 +168,7 @@ def prediction_ui(gt,nl):
         st.markdown("""** Note : This application is running on CPU , speed can be further increased by using GPU ** """)         
 
     elif submit==True and nl == 0:
-        st.error("There is no noise")
+        st.error("Image is having no noise")
 
 
 @st.cache
